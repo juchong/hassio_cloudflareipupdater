@@ -4,11 +4,12 @@ CONFIG_PATH=/data/options.json
 
 ZONE=$(jq --raw-output ".zone" $CONFIG_PATH)
 HOST=$(jq --raw-output ".host" $CONFIG_PATH)
-EMAIL=$(jq --raw-output ".email" $CONFIG_PATH)
-API=$(jq --raw-output ".api" $CONFIG_PATH)
+TOKEN=$(jq --raw-output ".token" $CONFIG_PATH)
+PROXY=$(jq --raw-output ".proxy" $CONFIG_PATH)
+TTL=$(jq --raw-output ".ttl" $CONFIG_PATH)
 
 # Enforces required env variables
-required_vars=(ZONE HOST EMAIL API)
+required_vars=(ZONE HOST EMAIL TOKEN PROXY TTL)
 for required_var in "${required_vars[@]}"; do
     if [[ -z ${!required_var} ]]; then
         error=1
@@ -21,10 +22,10 @@ if [[ -n $error ]]; then
 fi
 
 # PROXY defaults to true
-PROXY=${PROXY:-true}
+#PROXY=${PROXY:-true}
 
 # TTL defaults to 1 (automatic), and is validated
-TTL=${TTL:-1}
+#TTL=${TTL:-1}
 if [[ $TTL != 1 ]] && [[ $TTL -lt 120 || $TTL -gt 2147483647 ]]; then
     echo >&2 "Error: Invalid TTL value $TTL; must be either 1 (automatic) or between 120 and 2147483647 inclusive."
     exit 1
@@ -44,17 +45,15 @@ else
 fi
 
 # Determines the current IP address
-new_ip=$($ip_curl https://davidramosweb.com/miip.php)
+new_ip=$($ip_curl http://icanhazip.com/)
 
 # IP address service fallbacks
 if [[ -z $new_ip ]]; then
     new_ip=$($ip_curl http://whatismyip.akamai.com)
-fi
-if [[ -z $new_ip ]]; then
-    new_ip=$($ip_curl http://icanhazip.com/)
-fi
-if [[ -z $new_ip ]]; then
+elif [[ -z $new_ip ]]; then
     new_ip=$($ip_curl https://tnx.nl/ip)
+elif [[ -z $new_ip ]]; then
+    new_ip=$($ip_curl http://ifconfig.me)
 fi
 
 if [[ -z $new_ip ]]; then
@@ -77,8 +76,7 @@ echo "IP: $ip"
 
 # Fetches the zone information for the account
 zone_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$ZONE" \
-        -H "X-Auth-Email: $EMAIL" \
-        -H "X-Auth-Key: $API" \
+        -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json")
 
 
@@ -103,8 +101,7 @@ echo "Zone $ZONE id : $zone_id"
 
 # Tries to fetch the record of the host
 dns_record_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$HOST" \
-        -H "X-Auth-Email: $EMAIL" \
-        -H "X-Auth-Key: $API" \
+        -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json")
 
 if [[ $(jq <<<"$dns_record_response" -r '.success') != "true" ]]; then
@@ -147,8 +144,7 @@ if [[ -z $dns_record_id ]]; then
     echo "Creating new record for host $HOST"
 
     dns_record_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
-            -H "X-Auth-Email: $EMAIL" \
-            -H "X-Auth-Key: $API" \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             --data "$new_dns_record")
 else
@@ -157,8 +153,7 @@ else
     echo "Updating record $dns_record_id for host $HOST"
 
     dns_record_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$dns_record_id" \
-            -H "X-Auth-Email: $EMAIL" \
-            -H "X-Auth-Key: $API" \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             --data "$new_dns_record")
 fi

@@ -11,13 +11,15 @@
   "options": {
     "zone": "",
     "host": "",
-    "email": "",
-    "api": ""
+    "token": "",
+    "proxy": "",
+    "ttl": ""
   },
   "schema": {
     "zone": "str",
     "host": "str",
-    "email": "str",
-    "api": "str"
+    "token": "str",
+    "proxy": "str",
+    "ttl": "str"
   }
 } 
